@@ -1,5 +1,5 @@
 # -*- coding: utf8 -*-
-# 
+#
 # pywebsocketserver  2017.12.23
 # ===============================
 # Written  by suxianbaozi
@@ -21,7 +21,7 @@ import base64
 import struct
 
 class socketIO():
-    
+
     def __init__(self, port, uid, ioHandler):
         self.port = port
         self.con = None
@@ -30,72 +30,72 @@ class socketIO():
         self.io = ioHandler
         self.signKey = "ADS#@!D"
         self.online = True
-        
+
         self.lock = threading.Lock()
         self.thread = threading.Thread(name='ioThread', target=self.run)
         self.thread.setDaemon = False
 
         self.stop_thread = False
-        
+
     def start(self):
         self.socketThreadRunning = True
-        #print "current thread === " + threading.currentThread().getName()
-        #print "Thead alive?? " + str(self.Athread.is_alive)
+        #print ( "current thread === " + threading.currentThread().getName()
+        #print ( "Thead alive?? " + str(self.Athread.is_alive)
         for t in threading.enumerate():
-            print str(t.getName())
+            print ( str(t.getName()))
             if 'ioThread' == t.getName():
                 return
         self.thread.start()
-        
 
-        
+
+
     def Handshake(self):
-        
+
         self.isHandleShake = False
         self.online = True
         self.socketThreadRunning = True
-        
+
     def Connect(self):
-        
-        print "* Connecting . . ."
-        
-        
+
+        print ( "* Connecting . . .")
+
+
         sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(('',self.port))
         sock.listen(100)
-        
-        
+
+
         try:
             connection,address = sock.accept()
             self.con = connection
-            print "> Connected!"
+            print ( "> Connected!")
         except:
-            print "> Not Connected -" + sock.error
-        
-        print str(self.con)
-        
-        
+            print ( "> Not Connected -" + sock.error)
+
+        print ( str(self.con))
+
+
         return self.con
-        
+
         #while 1:
         #    data = connection.recv(1024)
         #    if not data: break
-            
-        
-    def run(self):       
+
+
+    def run(self):
         self.socketThreadRunning = True
         while self.socketThreadRunning == True:
-        
-            if not self.isHandleShake: 
-                
+
+            if not self.isHandleShake:
+
                 try:
                     self.con.setblocking(0)
                     ready = select.select([self.con], [], [], 1)
                     if ready[0]:
                         clientData  = self.con.recv(1024)
-                        
-                        #print clientData
+
+                        #print ( clientData
                         dataList = clientData.split("\r\n")
                         header = {}
                         for data in dataList:
@@ -111,40 +111,40 @@ class socketIO():
                         response += '''Sec-WebSocket-Accept: %s\r\n\r\n'''%(resKey,)
                         self.con.send(response)
                         self.isHandleShake = True
-                        
+
                         self.sendData("SETUID")
-                        
+
                         self.io.onConnect(self.uid)
                         continue
-                        
+
                 except:
-                    
+
                     continue
-                    
+
             else:
                 try:
-                    
+
                     ready = select.select([self.con], [], [], 0)
-                    
+
                     if ready[0]:
                         data_head = self.con.recv(1)
-                        
+
                         if repr(data_head)=='':
                             #self.socketThreadRunning = False
                             self.onClose()
                             continue
-                        
+
                         header = struct.unpack("B",data_head)[0]
                         opcode = header & 0b00001111
-                        #print "Op Code %d"%(opcode,)
+                        #print ( "Op Code %d"%(opcode,))
 
                         if opcode==8:
-                            print "* Closing Connection."
+                            print ( "* Closing Connection.")
                             self.socketThreadRunning = False
                             self.onClose()
-                            
+
                             continue
-                        
+
                         data_length = self.con.recv(1)
                         data_lengths= struct.unpack("B",data_length)
                         data_length = data_lengths[0]& 0b01111111
@@ -155,7 +155,7 @@ class socketIO():
                             payloadLength = struct.unpack("H",self.con.recv(2))[0]
                         elif data_length==127:
                             payloadLength = struct.unpack("Q",self.con.recv(8))[0]
-                        print "dataLen:%d"%(data_length,)
+                        print ( "dataLen:%d"%(data_length,))
                         if masking==1:
                             maskingKey = self.con.recv(4)
                             self.maskingKey = maskingKey
@@ -169,33 +169,33 @@ class socketIO():
                             self.onData(true_data)
                         else:
                             self.onData(data)
-                    
-                        
-                except Exception, msg:
+
+
+                except Exception as msg:
                     if msg[0] == 9 or msg[0] == 10053:
                         self.socketThreadRunning = False
-                        
-                    
-                    print "CyWebSocket().socketIO() Error: " + str(msg)
-                    
+
+
+                    print ( "CyWebSocket().socketIO() Error: " + str(msg))
+
                     self.socketThreadRunning = False
                     self.onClose()
-                    print str(msg[0])
+                    print ( str(msg[0]))
                     return
-            
-            
+
+
     def onData(self,text) :
-        print text
+        print ( text)
         try:
             uid,sign,value = text.split("<split>")
             uid = int(uid)
-            print str(text)
+            print ( str(text))
         except:
-            print "Error"
+            print ( "Error")
             self.con.close()
         hashStr = hashlib.new("md5",str(uid)+self.signKey).hexdigest()
         if hashStr!=sign:
-            print "Hash Invalid"
+            print ( "Hash Invalid")
             self.con.close()
             return
         return self.io.onData(uid,value)
@@ -208,15 +208,15 @@ class socketIO():
     def packData(self,text):
         sign = hashlib.new("md5",str(self.uid)+self.signKey).hexdigest()
         data = '%s<split>%s<split>%s'%(self.uid,sign,text)
-        
+
         return data
-        
+
     def sendData(self,text) :
-        
+
         text = self.packData(text)
-        
+
         self.con.send(struct.pack("!B",0x81))
-        
+
         length = len(text)
        # masking = 0b00000000;
 
@@ -231,4 +231,3 @@ class socketIO():
             self.con.send(struct.pack("!Q",length))
 
         self.con.send(struct.pack("!%ds"%(length,),text))
-        
